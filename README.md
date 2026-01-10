@@ -1,5 +1,5 @@
 
-![Logo](image link)
+![Logo](https://github.com/user-attachments/assets/3abcce70-fde6-424a-b165-828304f871c4)
 # PathAble
 
 A map for people with disabilities or injuries.
