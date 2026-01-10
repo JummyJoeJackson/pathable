@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View, TextInput, TouchableOpacity, Text, Platform, Alert, Keyboard, ActivityIndicator, Modal, ScrollView } from 'react-native';
+import { StyleSheet, View, TextInput, TouchableOpacity, Text, Platform, Alert, Keyboard, ActivityIndicator, Modal, ScrollView, Image } from 'react-native';
 import MapView, { Marker, Callout, PROVIDER_GOOGLE, Polyline } from 'react-native-maps';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -193,8 +193,18 @@ export default function App() {
             >
               <Callout tooltip onPress={() => fetchDirections(place)}>
                 <View style={styles.calloutContainer}>
-                  <Text style={styles.calloutTitle}>{place.name}</Text>
-                  <Text style={styles.calloutAddress}>{place.address}</Text>
+                  <View style={styles.calloutHeader}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.calloutTitle}>{place.name}</Text>
+                      <Text style={styles.calloutAddress}>{place.address}</Text>
+                    </View>
+                    {place.features.includes('Elevator') && (
+                      <Image
+                        source={require('./assets/elevator_icon.png')}
+                        style={styles.elevatorIcon}
+                      />
+                    )}
+                  </View>
                   <View style={styles.ratingContainer}>
                     <Text style={styles.ratingLabel}>Access Rating:</Text>
                     <Text style={[styles.ratingValue, { color: getPinColor(place.rating) }]}>
@@ -296,16 +306,24 @@ export default function App() {
         {isRouting && routeStats && (
           <View style={styles.routeContainer}>
             <View style={styles.routeHeader}>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={styles.routeTitle}>To: {selectedPlace?.name}</Text>
                 <Text style={styles.routeSubTitle}>{routeStats.duration} ({routeStats.distance})</Text>
                 {routeStats.rampUsed && (
                   <Text style={styles.rampAlert}>✓ Shortcut via Manual Ramp</Text>
                 )}
               </View>
-              <TouchableOpacity onPress={() => setIsRouting(false)} style={styles.closeRouteButton}>
-                <Ionicons name="close-circle" size={30} color="#666" />
-              </TouchableOpacity>
+              <View style={styles.headerIcons}>
+                {selectedPlace?.features.includes('Elevator') && (
+                  <Image
+                    source={require('./assets/elevator_icon.png')}
+                    style={styles.elevatorIcon}
+                  />
+                )}
+                <TouchableOpacity onPress={() => setIsRouting(false)} style={styles.closeRouteButton}>
+                  <Ionicons name="close-circle" size={30} color="#666" />
+                </TouchableOpacity>
+              </View>
             </View>
             <ScrollView style={styles.stepsList}>
               {routeSteps.map((step, i) => (
@@ -434,15 +452,26 @@ const styles = StyleSheet.create({
     elevation: 5,
     marginBottom: 5, // space for arrow
   },
+  calloutHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 4,
+  },
   calloutTitle: {
     fontWeight: 'bold',
     fontSize: 16,
-    marginBottom: 4,
+    marginBottom: 2,
+  },
+  elevatorIcon: {
+    width: 60,
+    height: 60,
+    marginLeft: 8,
+    resizeMode: 'contain',
   },
   calloutAddress: {
     fontSize: 12,
     color: '#666',
-    marginBottom: 8,
   },
   ratingContainer: {
     flexDirection: 'row',
@@ -526,6 +555,11 @@ const styles = StyleSheet.create({
   },
   closeRouteButton: {
     padding: 5,
+    marginLeft: 5,
+  },
+  headerIcons: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   stepsList: {
     flex: 1,
