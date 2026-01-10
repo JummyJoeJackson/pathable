@@ -22,7 +22,7 @@ A map for people with disabilities or injuries.
 
 ## Environment Variables
 
-To run this project, you will need to add the following environment variables in a .env file to both `pathable` and `pathable\workspace`
+To run this project, you will need to add the following environment variables in a .env file to the both `pathable` and `pathable\workspace` folders
 
 `EXPO_PUBLIC_API_URL`: URL of the server where the back-end is hosted
 
