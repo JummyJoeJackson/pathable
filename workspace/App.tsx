@@ -48,6 +48,8 @@ interface RouteStep {
   duration: string;
 }
 
+const CATEGORIES = ["washrooms", "entrances", "elevators", "seating", "parking"] as const;
+
 const FILTER_OPTIONS = [
   "Accessible Entrance",
   "Accessible Restroom",
@@ -56,7 +58,15 @@ const FILTER_OPTIONS = [
   "Elevator",
 ];
 
-const CATEGORIES = ["washrooms", "entrances", "elevators", "seating", "parking"] as const;
+const FILTER_TO_CATEGORY: Record<string, (typeof CATEGORIES)[number]> = {
+  "Accessible Entrance": "entrances",
+  "Accessible Restroom": "washrooms",
+  "Accessible Seating": "seating",
+  "Accessible Parking": "parking",
+  "Elevator": "elevators",
+};
+
+
 
 const prettyCategory = (k: string) => {
   const map: Record<string, string> = {
@@ -157,6 +167,9 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [filterVisible, setFilterVisible] = useState(false);
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
+  const [placesAverages, setPlacesAverages] = useState<Record<string, Record<string, number>>>({});
+
+
 
   // ---- Routing ----
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
@@ -206,7 +219,58 @@ export default function App() {
     return () => unsub();
   }, []);
 
+  // ---- Subscribe to reviews for ALL places (for filtering) ----
+  useEffect(() => {
+    if (places.length === 0) {
+      setPlacesAverages({});
+      return;
+    }
+
+    const placeIds = Array.from(new Set(places.map((p) => p.place_id)));
+    const q = query(
+      collection(db, "reviews"),
+      where("place_id", "in", placeIds)
+    );
+
+    const unsub = onSnapshot(q, (snap) => {
+      const grouped: Record<string, Record<string, { sum: number; count: number }>> = {};
+
+      placeIds.forEach((id) => {
+        grouped[id] = {};
+        CATEGORIES.forEach((c) => (grouped[id][c] = { sum: 0, count: 0 }));
+      });
+
+      snap.forEach((doc) => {
+        const data: any = doc.data();
+        const pid = data.place_id;
+        const ratings = data.ratings || {};
+        if (grouped[pid]) {
+          CATEGORIES.forEach((c) => {
+            const v = ratings[c];
+            if (typeof v === "number") {
+              grouped[pid][c].sum += v;
+              grouped[pid][c].count += 1;
+            }
+          });
+        }
+      });
+
+      const newAvgs: Record<string, Record<string, number>> = {};
+      placeIds.forEach((id) => {
+        newAvgs[id] = {};
+        CATEGORIES.forEach((c) => {
+          // If no ratings, count as 0 stars (per user request)
+          newAvgs[id][c] = grouped[id][c].count > 0 ? (grouped[id][c].sum / grouped[id][c].count) : 0;
+        });
+      });
+      setPlacesAverages(newAvgs);
+    });
+
+    return () => unsub();
+  }, [places]);
+
   // Cleanup reviews listener on unmount
+
   useEffect(() => {
     return () => {
       if (reviewsUnsubRef.current) reviewsUnsubRef.current();
@@ -474,15 +538,26 @@ export default function App() {
   };
 
   const toggleFilter = (filter: string) => {
-    if (selectedFilters.includes(filter)) setSelectedFilters(selectedFilters.filter((f) => f !== filter));
-    else setSelectedFilters([...selectedFilters, filter]);
+    if (selectedFilters.includes(filter)) {
+      setSelectedFilters(selectedFilters.filter((f) => f !== filter));
+    } else {
+      setSelectedFilters([...selectedFilters, filter]);
+    }
   };
 
-  const filteredPlaces = places.filter((place) =>
-    selectedFilters.every((filter) => (place.features ?? []).includes(filter))
-  );
+  const filteredPlaces = places.filter((place) => {
+    if (selectedFilters.length === 0) return true;
+    const avgs = placesAverages[place.place_id] || {};
+    return selectedFilters.every((filter) => {
+      const cat = FILTER_TO_CATEGORY[filter];
+      const score = avgs[cat] ?? 0; // count as 0 if unrated
+      return score > 2.5;
+    });
+  });
 
   const showFab = !detailsOpen && !rateOpen && !isRouting;
+
+
 
   return (
     <SafeAreaProvider>
@@ -522,6 +597,7 @@ export default function App() {
         >
           {/* Places */}
           {filteredPlaces.map((place, idx) => (
+
             <Marker
               key={`${place.place_id}-${idx}`}
               coordinate={{ latitude: place.lat, longitude: place.lng }}
@@ -532,6 +608,7 @@ export default function App() {
                 setDetailsOpen(true);
               }}
             >
+
               <Callout tooltip>
                 <View style={styles.calloutContainer}>
                   <Text style={styles.calloutTitle}>{place.name}</Text>
@@ -592,8 +669,14 @@ export default function App() {
               returnKeyType="search"
             />
             <TouchableOpacity onPress={() => setFilterVisible(true)} style={styles.filterButton}>
-              <Ionicons name="filter" size={24} color={selectedFilters.length > 0 ? "#007AFF" : "#666"} />
+              <Ionicons
+                name="filter"
+                size={24}
+                color={selectedFilters.length > 0 ? "#007AFF" : "#666"}
+              />
             </TouchableOpacity>
+
+
             <TouchableOpacity style={styles.button} onPress={searchPlaces} disabled={loading}>
               {loading ? (
                 <ActivityIndicator color="white" size="small" />
@@ -605,7 +688,12 @@ export default function App() {
         </SafeAreaView>
 
         {/* Filter Modal */}
-        <Modal animationType="slide" transparent visible={filterVisible} onRequestClose={() => setFilterVisible(false)}>
+        <Modal
+          animationType="slide"
+          transparent
+          visible={filterVisible}
+          onRequestClose={() => setFilterVisible(false)}
+        >
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
@@ -617,21 +705,34 @@ export default function App() {
 
               <ScrollView>
                 {FILTER_OPTIONS.map((option) => (
-                  <TouchableOpacity key={option} style={styles.filterOption} onPress={() => toggleFilter(option)}>
+                  <TouchableOpacity
+                    key={option}
+                    style={styles.filterOption}
+                    onPress={() => toggleFilter(option)}
+                  >
                     <Text style={styles.filterText}>{option}</Text>
-                    {selectedFilters.includes(option) && <Ionicons name="checkmark-circle" size={24} color="#007AFF" />}
+                    {selectedFilters.includes(option) && (
+                      <Ionicons name="checkmark-circle" size={24} color="#007AFF" />
+                    )}
                   </TouchableOpacity>
                 ))}
               </ScrollView>
 
-              <TouchableOpacity style={styles.applyButton} onPress={() => setFilterVisible(false)}>
-                <Text style={styles.applyButtonText}>Apply Filters ({selectedFilters.length})</Text>
+              <TouchableOpacity
+                style={styles.applyButton}
+                onPress={() => setFilterVisible(false)}
+              >
+                <Text style={styles.applyButtonText}>
+                  Apply Filters ({selectedFilters.length})
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
         </Modal>
 
         {/* Details Modal */}
+
+
         <Modal visible={detailsOpen} animationType="slide" transparent onRequestClose={() => setDetailsOpen(false)}>
           <View style={styles.sheetOverlay} pointerEvents="box-none">
             <View style={styles.sheet} pointerEvents="auto">
