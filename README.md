@@ -76,4 +76,6 @@ Go to the project directory
   npx expo start
 ```
 
+Optionally, you can just run the `run_app.bat` file
+
 Have Fun! 😊
