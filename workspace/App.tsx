@@ -1,36 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
 import { StatusBar } from "expo-status-bar";
-import {
-  ActivityIndicator,
-  Alert,
-  Keyboard,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { ActivityIndicator, Alert, Keyboard, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import MapView, { Callout, Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
-
 import { db } from "./firebase";
-import {
-  addDoc,
-  collection,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  where,
-} from "firebase/firestore";
+import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp, where } from "firebase/firestore";
 
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://172.17.75.111:5001";
 
 interface Place {
   place_id: string;
@@ -47,6 +24,9 @@ interface RouteStep {
   distance: string;
   duration: string;
 }
+
+
+const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://172.17.75.111:5001";
 
 const CATEGORIES = ["washrooms", "entrances", "elevators", "seating", "parking"] as const;
 
@@ -67,7 +47,6 @@ const FILTER_TO_CATEGORY: Record<string, (typeof CATEGORIES)[number]> = {
 };
 
 
-
 const prettyCategory = (k: string) => {
   const map: Record<string, string> = {
     washrooms: "Accessible washrooms",
@@ -79,7 +58,6 @@ const prettyCategory = (k: string) => {
   return map[k] ?? k;
 };
 
-// ---- Stars (display) ----
 const StarRow = ({ value }: { value: number }) => {
   const v = Math.max(0, Math.min(5, value));
   const full = Math.floor(v);
@@ -106,7 +84,6 @@ const StarRow = ({ value }: { value: number }) => {
   );
 };
 
-// ---- Stars (input) ----
 const StarInput = ({
   value,
   onChange,
@@ -131,7 +108,6 @@ const StarInput = ({
   );
 };
 
-// ---- distance helper (meters-ish, good enough) ----
 const distMeters = (aLat: number, aLng: number, bLat: number, bLng: number) => {
   const x = (bLng - aLng) * 111320 * Math.cos(((aLat + bLat) / 2) * (Math.PI / 180));
   const y = (bLat - aLat) * 110540;
@@ -139,20 +115,13 @@ const distMeters = (aLat: number, aLng: number, bLat: number, bLng: number) => {
 };
 
 export default function App() {
-  // ---- Reviews ----
   const [avgRatings, setAvgRatings] = useState<Record<string, number>>({});
   const [reviewCount, setReviewCount] = useState(0);
   const reviewsUnsubRef = useRef<null | (() => void)>(null);
-
-  // ---- Ramps ----
   const [ramps, setRamps] = useState<{ id: string; lat: number; lng: number }[]>([]);
   const [addRampMode, setAddRampMode] = useState(false);
-
-  // ---- Modals ----
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [rateOpen, setRateOpen] = useState(false);
-
-  // ---- User input ratings ----
   const [myRatings, setMyRatings] = useState<Record<string, number>>({
     washrooms: 0,
     entrances: 0,
@@ -160,18 +129,12 @@ export default function App() {
     seating: 0,
     parking: 0,
   });
-
-  // ---- Search/filter ----
   const [queryText, setQueryText] = useState("");
   const [places, setPlaces] = useState<Place[]>([]);
   const [loading, setLoading] = useState(false);
   const [filterVisible, setFilterVisible] = useState(false);
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
   const [placesAverages, setPlacesAverages] = useState<Record<string, Record<string, number>>>({});
-
-
-
-  // ---- Routing ----
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [route, setRoute] = useState<{ latitude: number; longitude: number }[]>([]);
   const [routeSteps, setRouteSteps] = useState<RouteStep[]>([]);
@@ -186,7 +149,6 @@ export default function App() {
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const mapRef = useRef<MapView>(null);
 
-  // ---- Location permission ----
   useEffect(() => {
     (async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
@@ -199,7 +161,6 @@ export default function App() {
     })();
   }, []);
 
-  // ---- Subscribe ramps (real-time) ----
   useEffect(() => {
     const q = query(collection(db, "ramps"), orderBy("created_at", "desc"));
     const unsub = onSnapshot(
@@ -219,7 +180,6 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  // ---- Subscribe to reviews for ALL places (for filtering) ----
   useEffect(() => {
     if (places.length === 0) {
       setPlacesAverages({});
@@ -269,15 +229,12 @@ export default function App() {
     return () => unsub();
   }, [places]);
 
-  // Cleanup reviews listener on unmount
-
   useEffect(() => {
     return () => {
       if (reviewsUnsubRef.current) reviewsUnsubRef.current();
     };
   }, []);
 
-  // ---- Reviews ----
   const addReview = async (place: Place, ratings: Record<string, number>) => {
     try {
       await addDoc(collection(db, "reviews"), {
@@ -342,7 +299,6 @@ export default function App() {
     CATEGORIES.reduce((sum, k) => sum + (avgRatings[k] ?? 0), 0) / CATEGORIES.length;
   const overallDisplay = reviewCount === 0 ? 0 : Number.isFinite(overallAvg) ? overallAvg : 0;
 
-  // ---- Ramps: add ----
   const addRamp = async (lat: number, lng: number) => {
     try {
       const docRef = await addDoc(collection(db, "ramps"), {
@@ -351,7 +307,6 @@ export default function App() {
         created_at: serverTimestamp(),
       });
 
-      // Auto-add a 5-star baseline review for every category
       const fullRatings: Record<string, number> = {};
       CATEGORIES.forEach((c) => (fullRatings[c] = 5));
 
@@ -366,13 +321,11 @@ export default function App() {
     }
   };
 
-  // ---- Backend: search places ----
   const searchPlaces = async () => {
     if (!queryText.trim()) return;
     Keyboard.dismiss();
     setLoading(true);
 
-    // reset selection + routing
     setRoute([]);
     setRouteSteps([]);
     setIsRouting(false);
@@ -416,7 +369,6 @@ export default function App() {
     }
   };
 
-  // ---- Backend: get directions (supports waypoint) ----
   const getDirections = async (destination: Place, waypoint?: { lat: number; lng: number }) => {
     if (!location) throw new Error("No location yet");
 
@@ -442,7 +394,6 @@ export default function App() {
     };
   };
 
-  // ---- Prefer ramps (stronger) ----
   const fetchDirectionsPreferRamps = async (destination: Place) => {
     if (!location) {
       Alert.alert("Error", "Waiting for your location...");
@@ -455,7 +406,6 @@ export default function App() {
       const originLat = location.coords.latitude;
       const originLng = location.coords.longitude;
 
-      // 1) Direct route
       const direct = await getDirections(destination);
 
       const routeLength = (pts: { latitude: number; longitude: number }[]) => {
@@ -473,7 +423,6 @@ export default function App() {
       };
 
       const directLen = routeLength(direct.points);
-
 
       const candidates = ramps
         .map((r) => ({
@@ -499,7 +448,6 @@ export default function App() {
         try {
           const data = await getDirections(destination, { lat: r.lat, lng: r.lng });
           const len = routeLength(data.points);
-
 
           if (len <= directLen * MAX_MULTIPLIER) {
             best = {
@@ -560,12 +508,11 @@ export default function App() {
     const avgs = placesAverages[place.place_id] || {};
     return selectedFilters.every((filter) => {
       const cat = FILTER_TO_CATEGORY[filter];
-      const score = avgs[cat] ?? 0; // count as 0 if unrated
+      const score = avgs[cat] ?? 0;
       return score > 2.5;
     });
   });
 
-  // Combine filtered places and all ramps into one stable list for the map
   const displayMarkers = [
     ...filteredPlaces.map((p) => ({ ...p, isRamp: false })),
     ...ramps.map((r) => ({
@@ -578,10 +525,7 @@ export default function App() {
     })),
   ];
 
-
   const showFab = !detailsOpen && !rateOpen && !isRouting;
-
-
 
   return (
     <SafeAreaProvider>
@@ -752,8 +696,6 @@ export default function App() {
         </Modal>
 
         {/* Details Modal */}
-
-
         <Modal visible={detailsOpen} animationType="slide" transparent onRequestClose={() => setDetailsOpen(false)}>
           <View style={styles.sheetOverlay} pointerEvents="box-none">
             <View style={styles.sheet} pointerEvents="auto">
