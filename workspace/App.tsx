@@ -1,19 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { StatusBar } from "expo-status-bar";
-import {
-  ActivityIndicator,
-  Alert,
-  Keyboard,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-  Image,
-} from "react-native";
+import { ActivityIndicator, Alert, Keyboard, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Image } from "react-native";
 import MapView, { Callout, Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
