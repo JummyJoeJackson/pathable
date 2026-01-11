@@ -1,13 +1,25 @@
 import React, { useEffect, useRef, useState } from "react";
 import { StatusBar } from "expo-status-bar";
-import { ActivityIndicator, Alert, Keyboard, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  Keyboard,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  Image,
+} from "react-native";
 import MapView, { Callout, Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { db } from "./firebase";
 import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp, where } from "firebase/firestore";
-
 
 interface Place {
   place_id: string;
@@ -24,7 +36,6 @@ interface RouteStep {
   distance: string;
   duration: string;
 }
-
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://172.17.75.111:5001";
 
@@ -43,9 +54,10 @@ const FILTER_TO_CATEGORY: Record<string, (typeof CATEGORIES)[number]> = {
   "Accessible Restroom": "washrooms",
   "Accessible Seating": "seating",
   "Accessible Parking": "parking",
-  "Elevator": "elevators",
+  Elevator: "elevators",
 };
 
+const rampIcon = require("./assets/ramp_icon.png");
 
 const prettyCategory = (k: string) => {
   const map: Record<string, string> = {
@@ -100,7 +112,11 @@ const StarInput = ({
           style={{ padding: 4 }}
           activeOpacity={0.7}
         >
-          <Ionicons name={i <= value ? "star" : "star-outline"} size={28} color="#f5c518" />
+          <Ionicons
+            name={i <= value ? "star" : "star-outline"}
+            size={28}
+            color="#f5c518"
+          />
         </TouchableOpacity>
       ))}
       <Text style={{ marginLeft: 6, fontWeight: "bold" }}>{value}/5</Text>
@@ -118,10 +134,13 @@ export default function App() {
   const [avgRatings, setAvgRatings] = useState<Record<string, number>>({});
   const [reviewCount, setReviewCount] = useState(0);
   const reviewsUnsubRef = useRef<null | (() => void)>(null);
+
   const [ramps, setRamps] = useState<{ id: string; lat: number; lng: number }[]>([]);
   const [addRampMode, setAddRampMode] = useState(false);
+
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [rateOpen, setRateOpen] = useState(false);
+
   const [myRatings, setMyRatings] = useState<Record<string, number>>({
     washrooms: 0,
     entrances: 0,
@@ -129,12 +148,17 @@ export default function App() {
     seating: 0,
     parking: 0,
   });
+
   const [queryText, setQueryText] = useState("");
   const [places, setPlaces] = useState<Place[]>([]);
   const [loading, setLoading] = useState(false);
+
   const [filterVisible, setFilterVisible] = useState(false);
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
-  const [placesAverages, setPlacesAverages] = useState<Record<string, Record<string, number>>>({});
+  const [placesAverages, setPlacesAverages] = useState<Record<string, Record<string, number>>>(
+    {}
+  );
+
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [route, setRoute] = useState<{ latitude: number; longitude: number }[]>([]);
   const [routeSteps, setRouteSteps] = useState<RouteStep[]>([]);
@@ -149,9 +173,10 @@ export default function App() {
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const mapRef = useRef<MapView>(null);
 
+  // Location permission
   useEffect(() => {
     (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
+      const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
         Alert.alert("Permission to access location was denied");
         return;
@@ -161,6 +186,7 @@ export default function App() {
     })();
   }, []);
 
+  // Subscribe ramps
   useEffect(() => {
     const q = query(collection(db, "ramps"), orderBy("created_at", "desc"));
     const unsub = onSnapshot(
@@ -180,6 +206,7 @@ export default function App() {
     return () => unsub();
   }, []);
 
+  // Subscribe place averages for filters (rating-based)
   useEffect(() => {
     if (places.length === 0) {
       setPlacesAverages({});
@@ -187,10 +214,9 @@ export default function App() {
     }
 
     const placeIds = Array.from(new Set(places.map((p) => p.place_id)));
-    const q = query(
-      collection(db, "reviews"),
-      where("place_id", "in", placeIds)
-    );
+    // Firestore "in" supports up to 10 items. If you often have >10 results,
+    // you'll need to chunk this query. Leaving as-is to match your current behavior.
+    const q = query(collection(db, "reviews"), where("place_id", "in", placeIds));
 
     const unsub = onSnapshot(q, (snap) => {
       const grouped: Record<string, Record<string, { sum: number; count: number }>> = {};
@@ -219,16 +245,18 @@ export default function App() {
       placeIds.forEach((id) => {
         newAvgs[id] = {};
         CATEGORIES.forEach((c) => {
-          // If no ratings, count as 0 stars (per user request)
-          newAvgs[id][c] = grouped[id][c].count > 0 ? (grouped[id][c].sum / grouped[id][c].count) : 0;
+          newAvgs[id][c] =
+            grouped[id][c].count > 0 ? grouped[id][c].sum / grouped[id][c].count : 0;
         });
       });
+
       setPlacesAverages(newAvgs);
     });
 
     return () => unsub();
   }, [places]);
 
+  // Cleanup reviews listener on unmount
   useEffect(() => {
     return () => {
       if (reviewsUnsubRef.current) reviewsUnsubRef.current();
@@ -299,20 +327,12 @@ export default function App() {
     CATEGORIES.reduce((sum, k) => sum + (avgRatings[k] ?? 0), 0) / CATEGORIES.length;
   const overallDisplay = reviewCount === 0 ? 0 : Number.isFinite(overallAvg) ? overallAvg : 0;
 
+  // ✅ Ramps are NOT treated like places anymore: no review doc created.
   const addRamp = async (lat: number, lng: number) => {
     try {
-      const docRef = await addDoc(collection(db, "ramps"), {
+      await addDoc(collection(db, "ramps"), {
         lat,
         lng,
-        created_at: serverTimestamp(),
-      });
-
-      const fullRatings: Record<string, number> = {};
-      CATEGORIES.forEach((c) => (fullRatings[c] = 5));
-
-      await addDoc(collection(db, "reviews"), {
-        place_id: docRef.id,
-        ratings: fullRatings,
         created_at: serverTimestamp(),
       });
     } catch (e) {
@@ -375,10 +395,9 @@ export default function App() {
     const originStr = `${location.coords.latitude},${location.coords.longitude}`;
     const destStr = `${destination.lat},${destination.lng}`;
 
-    const url =
-      waypoint
-        ? `${API_URL}/api/directions?origin=${originStr}&destination=${destStr}&waypoint=${waypoint.lat},${waypoint.lng}`
-        : `${API_URL}/api/directions?origin=${originStr}&destination=${destStr}`;
+    const url = waypoint
+      ? `${API_URL}/api/directions?origin=${originStr}&destination=${destStr}&waypoint=${waypoint.lat},${waypoint.lng}`
+      : `${API_URL}/api/directions?origin=${originStr}&destination=${destStr}`;
 
     const resp = await fetch(url);
     const data = await resp.json();
@@ -432,8 +451,7 @@ export default function App() {
             distMeters(r.lat, r.lng, destination.lat, destination.lng),
         }))
         .sort((a, b) => a.score - b.score)
-        .slice(0, 6); // try more
-
+        .slice(0, 6);
 
       const MAX_MULTIPLIER = 1.35;
 
@@ -458,7 +476,6 @@ export default function App() {
             };
             break;
           }
-
 
           if (len < best.len) {
             best = {
@@ -503,6 +520,7 @@ export default function App() {
     }
   };
 
+  // ✅ Filter applies ONLY to places; ramps are drawn separately and unaffected.
   const filteredPlaces = places.filter((place) => {
     if (selectedFilters.length === 0) return true;
     const avgs = placesAverages[place.place_id] || {};
@@ -512,18 +530,6 @@ export default function App() {
       return score > 2.5;
     });
   });
-
-  const displayMarkers = [
-    ...filteredPlaces.map((p) => ({ ...p, isRamp: false })),
-    ...ramps.map((r) => ({
-      place_id: r.id,
-      name: "Ramp",
-      address: "Crowd-sourced accessibility point",
-      lat: r.lat,
-      lng: r.lng,
-      isRamp: true,
-    })),
-  ];
 
   const showFab = !detailsOpen && !rateOpen && !isRouting;
 
@@ -542,45 +548,33 @@ export default function App() {
           }}
           showsUserLocation
           showsMyLocationButton
-          onUserLocationChange={(e) => setLocation({ ...location, coords: e.nativeEvent.coordinate } as any)}
+          onUserLocationChange={(e) =>
+            setLocation({ ...location, coords: e.nativeEvent.coordinate } as any)
+          }
           onPress={(e) => {
             if (!addRampMode) return;
 
             const { latitude, longitude } = e.nativeEvent.coordinate;
-            Alert.alert(
-              "Add ramp here?",
-              `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`,
-              [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Add",
-                  onPress: () => {
-                    addRamp(latitude, longitude);
-                    setAddRampMode(false);
-                  },
+            Alert.alert("Add ramp here?", `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`, [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Add",
+                onPress: () => {
+                  addRamp(latitude, longitude);
+                  setAddRampMode(false);
                 },
-              ]
-            );
+              },
+            ]);
           }}
         >
-          {displayMarkers.map((m) => (
+          {/* Places */}
+          {filteredPlaces.map((m) => (
             <Marker
               key={m.place_id}
               coordinate={{ latitude: m.lat, longitude: m.lng }}
               title={m.name}
-              pinColor={m.isRamp ? "#28a745" : undefined}
               onPress={() => {
-                const placeObj = m.isRamp
-                  ? {
-                    place_id: m.place_id,
-                    name: m.name,
-                    address: m.address,
-                    lat: m.lat,
-                    lng: m.lng,
-                  }
-                  : (m as any as Place);
-
-                setSelectedPlace(placeObj);
+                setSelectedPlace(m);
                 subscribeToReviews(m.place_id);
                 setDetailsOpen(true);
               }}
@@ -596,6 +590,27 @@ export default function App() {
               </Callout>
             </Marker>
           ))}
+
+          {/* Ramps */}
+  {ramps.map((r) => (
+  <Marker
+    key={r.id}
+    coordinate={{ latitude: r.lat, longitude: r.lng }}
+    anchor={{ x: 0.5, y: 0.5 }}
+  >
+    <View style={styles.rampIconWrap}>
+      <Image
+        source={rampIcon}
+        style={styles.rampIcon}
+        resizeMode="contain"
+      />
+    </View>
+
+    <Callout>
+      <Text style={{ fontWeight: "700" }}>Ramp</Text>
+    </Callout>
+  </Marker>
+))}
 
 
           {isRouting && route.length > 0 && (
@@ -622,7 +637,6 @@ export default function App() {
           </View>
         )}
 
-        { }
         <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
           <View style={styles.searchContainer}>
             <TextInput
@@ -640,7 +654,6 @@ export default function App() {
                 color={selectedFilters.length > 0 ? "#007AFF" : "#666"}
               />
             </TouchableOpacity>
-
 
             <TouchableOpacity style={styles.button} onPress={searchPlaces} disabled={loading}>
               {loading ? (
@@ -683,10 +696,7 @@ export default function App() {
                 ))}
               </ScrollView>
 
-              <TouchableOpacity
-                style={styles.applyButton}
-                onPress={() => setFilterVisible(false)}
-              >
+              <TouchableOpacity style={styles.applyButton} onPress={() => setFilterVisible(false)}>
                 <Text style={styles.applyButtonText}>
                   Apply Filters ({selectedFilters.length})
                 </Text>
@@ -696,7 +706,12 @@ export default function App() {
         </Modal>
 
         {/* Details Modal */}
-        <Modal visible={detailsOpen} animationType="slide" transparent onRequestClose={() => setDetailsOpen(false)}>
+        <Modal
+          visible={detailsOpen}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setDetailsOpen(false)}
+        >
           <View style={styles.sheetOverlay} pointerEvents="box-none">
             <View style={styles.sheet} pointerEvents="auto">
               <View style={styles.sheetHeader}>
@@ -725,7 +740,6 @@ export default function App() {
                 </Text>
               </View>
 
-              {/* Buttons */}
               <View style={{ flexDirection: "row", marginTop: 14 }}>
                 <TouchableOpacity
                   style={[styles.primaryBtn, { flex: 1, marginRight: 8 }]}
@@ -740,7 +754,10 @@ export default function App() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.primaryBtn, { flex: 1, backgroundColor: "#28a745", marginLeft: 8 }]}
+                  style={[
+                    styles.primaryBtn,
+                    { flex: 1, backgroundColor: "#28a745", marginLeft: 8 },
+                  ]}
                   activeOpacity={0.85}
                   onPress={() => {
                     setDetailsOpen(false);
@@ -760,7 +777,9 @@ export default function App() {
                 </TouchableOpacity>
               </View>
 
-              <Text style={{ fontWeight: "bold", marginTop: 18, marginBottom: 8 }}>Category ratings</Text>
+              <Text style={{ fontWeight: "bold", marginTop: 18, marginBottom: 8 }}>
+                Category ratings
+              </Text>
 
               <ScrollView style={{ flex: 1 }}>
                 {CATEGORIES.map((k) => (
@@ -780,7 +799,12 @@ export default function App() {
         </Modal>
 
         {/* Rate Modal */}
-        <Modal visible={rateOpen} animationType="slide" transparent onRequestClose={() => setRateOpen(false)}>
+        <Modal
+          visible={rateOpen}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setRateOpen(false)}
+        >
           <View style={styles.sheetOverlay}>
             <View style={styles.sheet}>
               <View style={styles.sheetHeader}>
@@ -842,12 +866,16 @@ export default function App() {
 
                 {routeStats.rampUsed && (
                   <Text style={styles.rampAlert}>
-                    ✓ Using crowd-sourced ramp{routeStats.waypoint ? ` near ${routeStats.waypoint}` : ""}
+                    ✓ Using crowd-sourced ramp
+                    {routeStats.waypoint ? ` near ${routeStats.waypoint}` : ""}
                   </Text>
                 )}
               </View>
 
-              <TouchableOpacity onPress={() => setIsRouting(false)} style={styles.closeRouteButton}>
+              <TouchableOpacity
+                onPress={() => setIsRouting(false)}
+                style={styles.closeRouteButton}
+              >
                 <Ionicons name="close-circle" size={30} color="#666" />
               </TouchableOpacity>
             </View>
@@ -1075,5 +1103,17 @@ const styles = StyleSheet.create({
     color: "white",
     fontWeight: "bold",
     marginLeft: 8,
+  },
+  // ramp icon wrapper and image
+  rampIconWrap: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent",
+  },
+  rampIcon: {
+    width: 28,
+    height: 28,
   },
 });
