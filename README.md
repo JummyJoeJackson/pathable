@@ -59,7 +59,8 @@ Go to the project directory
 🏁 Start the Backend Server
 
 ```bash
-  .venv\Scripts\activate
+  python -m venv venv
+  .\venv\Scripts\activate
   python backend\main.py
 ```
 
