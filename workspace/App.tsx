@@ -37,7 +37,29 @@ interface RouteStep {
   duration: string;
 }
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://172.17.75.111:5001";
+const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:5001";
+
+const COLORS = {
+  DUSK_BLUE: "#195291",
+  GUNMETAL: "#424242",
+  ICY_BLUE: "#C2E5FF",
+  JUNGLE_TEAL: "#6B9080",
+  PLATINUM: "#F3F7F6",
+  WHITE: "#FFFFFF",
+  BLACK: "#000000",
+};
+
+const THEME = {
+  primary: COLORS.DUSK_BLUE,
+  secondary: COLORS.GUNMETAL,
+  accent: COLORS.JUNGLE_TEAL,
+  background: COLORS.PLATINUM,
+  surface: COLORS.WHITE,
+  border: "#E0E0E0",
+  text: COLORS.GUNMETAL,
+  textLight: "#888888",
+  info: COLORS.ICY_BLUE,
+};
 
 const CATEGORIES = ["washrooms", "entrances", "elevators", "seating", "parking"] as const;
 
@@ -548,6 +570,7 @@ export default function App() {
           }}
           showsUserLocation
           showsMyLocationButton
+          mapPadding={{ top: 0, right: 0, bottom: 0, left: 0 }}
           onUserLocationChange={(e) =>
             setLocation({ ...location, coords: e.nativeEvent.coordinate } as any)
           }
@@ -592,36 +615,36 @@ export default function App() {
           ))}
 
           {/* Ramps */}
-  {ramps.map((r) => (
-  <Marker
-    key={r.id}
-    coordinate={{ latitude: r.lat, longitude: r.lng }}
-    anchor={{ x: 0.5, y: 0.5 }}
-  >
-    <View style={styles.rampIconWrap}>
-      <Image
-        source={rampIcon}
-        style={styles.rampIcon}
-        resizeMode="contain"
-      />
-    </View>
+          {ramps.map((r) => (
+            <Marker
+              key={r.id}
+              coordinate={{ latitude: r.lat, longitude: r.lng }}
+              anchor={{ x: 0.5, y: 0.5 }}
+            >
+              <View style={styles.rampIconWrap}>
+                <Image
+                  source={rampIcon}
+                  style={styles.rampIcon}
+                  resizeMode="contain"
+                />
+              </View>
 
-    <Callout>
-      <Text style={{ fontWeight: "700" }}>Ramp</Text>
-    </Callout>
-  </Marker>
-))}
+              <Callout>
+                <Text style={{ fontWeight: "700" }}>Ramp</Text>
+              </Callout>
+            </Marker>
+          ))}
 
 
           {isRouting && route.length > 0 && (
-            <Polyline coordinates={route} strokeColor="#007AFF" strokeWidth={5} />
+            <Polyline coordinates={route} strokeColor={THEME.primary} strokeWidth={5} />
           )}
         </MapView>
 
         {showFab && (
           <View style={styles.fabContainer}>
             <TouchableOpacity
-              style={[styles.fab, addRampMode && { backgroundColor: "#28a745" }]}
+              style={[styles.fab, addRampMode && { backgroundColor: THEME.accent }]}
               onPress={() => {
                 setAddRampMode((v) => !v);
                 Alert.alert(
@@ -651,7 +674,7 @@ export default function App() {
               <Ionicons
                 name="filter"
                 size={24}
-                color={selectedFilters.length > 0 ? "#007AFF" : "#666"}
+                color={selectedFilters.length > 0 ? THEME.primary : THEME.textLight}
               />
             </TouchableOpacity>
 
@@ -690,7 +713,7 @@ export default function App() {
                   >
                     <Text style={styles.filterText}>{option}</Text>
                     {selectedFilters.includes(option) && (
-                      <Ionicons name="checkmark-circle" size={24} color="#007AFF" />
+                      <Ionicons name="checkmark-circle" size={24} color={THEME.primary} />
                     )}
                   </TouchableOpacity>
                 ))}
@@ -720,7 +743,7 @@ export default function App() {
                   <Text style={styles.sheetSub}>{selectedPlace?.address ?? ""}</Text>
                 </View>
                 <TouchableOpacity onPress={() => setDetailsOpen(false)} activeOpacity={0.7}>
-                  <Ionicons name="close" size={26} color="#666" />
+                  <Ionicons name="close" size={26} color={THEME.textLight} />
                 </TouchableOpacity>
               </View>
 
@@ -756,7 +779,7 @@ export default function App() {
                 <TouchableOpacity
                   style={[
                     styles.primaryBtn,
-                    { flex: 1, backgroundColor: "#28a745", marginLeft: 8 },
+                    { flex: 1, backgroundColor: THEME.accent, marginLeft: 8 },
                   ]}
                   activeOpacity={0.85}
                   onPress={() => {
@@ -813,7 +836,7 @@ export default function App() {
                   <Text style={styles.sheetSub}>{selectedPlace?.name ?? ""}</Text>
                 </View>
                 <TouchableOpacity onPress={() => setRateOpen(false)} activeOpacity={0.7}>
-                  <Ionicons name="close" size={26} color="#666" />
+                  <Ionicons name="close" size={26} color={THEME.textLight} />
                 </TouchableOpacity>
               </View>
 
@@ -855,45 +878,47 @@ export default function App() {
         </Modal>
 
         {/* Route Panel */}
-        {isRouting && routeStats && (
-          <View style={styles.routeContainer}>
-            <View style={styles.routeHeader}>
-              <View style={{ flex: 1, paddingRight: 10 }}>
-                <Text style={styles.routeTitle}>To: {selectedPlace?.name}</Text>
-                <Text style={styles.routeSubTitle}>
-                  {routeStats.duration} ({routeStats.distance})
-                </Text>
-
-                {routeStats.rampUsed && (
-                  <Text style={styles.rampAlert}>
-                    ✓ Using crowd-sourced ramp
-                    {routeStats.waypoint ? ` near ${routeStats.waypoint}` : ""}
+        {
+          isRouting && routeStats && (
+            <View style={styles.routeContainer}>
+              <View style={styles.routeHeader}>
+                <View style={{ flex: 1, paddingRight: 10 }}>
+                  <Text style={styles.routeTitle}>To: {selectedPlace?.name}</Text>
+                  <Text style={styles.routeSubTitle}>
+                    {routeStats.duration} ({routeStats.distance})
                   </Text>
-                )}
+
+                  {routeStats.rampUsed && (
+                    <Text style={styles.rampAlert}>
+                      ✓ Using crowd-sourced ramp
+                      {routeStats.waypoint ? ` near ${routeStats.waypoint}` : ""}
+                    </Text>
+                  )}
+                </View>
+
+                <TouchableOpacity
+                  onPress={() => setIsRouting(false)}
+                  style={styles.closeRouteButton}
+                >
+                  <Ionicons name="close-circle" size={30} color={THEME.textLight} />
+                </TouchableOpacity>
               </View>
 
-              <TouchableOpacity
-                onPress={() => setIsRouting(false)}
-                style={styles.closeRouteButton}
-              >
-                <Ionicons name="close-circle" size={30} color="#666" />
-              </TouchableOpacity>
+              <ScrollView style={styles.stepsList}>
+                {routeSteps.map((step, i) => (
+                  <View key={i} style={styles.stepItem}>
+                    <Text style={styles.stepIndex}>{i + 1}.</Text>
+                    <Text style={styles.stepText}>{step.instruction}</Text>
+                  </View>
+                ))}
+              </ScrollView>
             </View>
-
-            <ScrollView style={styles.stepsList}>
-              {routeSteps.map((step, i) => (
-                <View key={i} style={styles.stepItem}>
-                  <Text style={styles.stepIndex}>{i + 1}.</Text>
-                  <Text style={styles.stepText}>{step.instruction}</Text>
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-        )}
+          )
+        }
 
         <StatusBar style="auto" />
-      </View>
-    </SafeAreaProvider>
+      </View >
+    </SafeAreaProvider >
   );
 }
 
@@ -912,27 +937,28 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     width: "90%",
     marginTop: Platform.OS === "android" ? 40 : 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    shadowColor: COLORS.BLACK,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
     elevation: 5,
-    backgroundColor: "white",
-    borderRadius: 8,
+    backgroundColor: THEME.surface,
+    borderRadius: 25, // Rounder pill shape
     alignItems: "center",
-    paddingRight: 0,
+    paddingLeft: 5,
+    borderWidth: 1,
+    borderColor: THEME.border,
   },
-  input: { flex: 1, padding: 12, fontSize: 16 },
+  input: { flex: 1, padding: 12, fontSize: 16, color: THEME.text },
   filterButton: { padding: 10 },
   button: {
-    backgroundColor: "#007AFF",
-    padding: 12,
+    backgroundColor: THEME.primary,
+    paddingHorizontal: 30,
     justifyContent: "center",
-    minWidth: 80,
     alignItems: "center",
-    height: "100%",
-    borderTopRightRadius: 8,
-    borderBottomRightRadius: 8,
+    height: 45,
+    marginRight: 0,
+    borderRadius: 22,
   },
   buttonText: { color: "white", fontWeight: "bold", fontSize: 16 },
 
@@ -942,11 +968,16 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "white",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    maxHeight: "60%",
+    backgroundColor: THEME.background,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    padding: 24,
+    maxHeight: "75%",
+    shadowColor: COLORS.BLACK,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 20,
   },
   modalHeader: {
     flexDirection: "row",
@@ -965,64 +996,76 @@ const styles = StyleSheet.create({
   },
   filterText: { fontSize: 16 },
   applyButton: {
-    backgroundColor: "#007AFF",
+    backgroundColor: THEME.primary,
     padding: 15,
-    borderRadius: 10,
+    borderRadius: 12,
     marginTop: 20,
     alignItems: "center",
   },
-  applyButtonText: { color: "white", fontWeight: "bold", fontSize: 16 },
+  applyButtonText: { color: COLORS.WHITE, fontWeight: "bold", fontSize: 16 },
 
   calloutContainer: {
-    backgroundColor: "white",
-    padding: 10,
-    borderRadius: 8,
+    backgroundColor: THEME.surface,
+    padding: 12,
+    borderRadius: 15,
     width: 250,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
+    shadowColor: COLORS.BLACK,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
     elevation: 5,
-    marginBottom: 5,
+    borderWidth: 1,
+    borderColor: THEME.border,
   },
-  calloutTitle: { fontWeight: "bold", fontSize: 16, marginBottom: 4 },
-  calloutAddress: { fontSize: 12, color: "#666", marginBottom: 8 },
+  calloutTitle: { fontWeight: "bold", fontSize: 16, marginBottom: 4, color: THEME.text },
+  calloutAddress: { fontSize: 12, color: THEME.textLight, marginBottom: 8 },
   calloutButton: {
-    backgroundColor: "#007AFF",
-    padding: 8,
-    borderRadius: 8,
+    backgroundColor: THEME.primary,
+    padding: 10,
+    borderRadius: 10,
     alignItems: "center",
   },
-  calloutButtonText: { color: "white", fontWeight: "bold", fontSize: 12 },
+  calloutButtonText: { color: COLORS.WHITE, fontWeight: "bold", fontSize: 12 },
 
   sheetOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "flex-end",
   },
   sheet: {
-    backgroundColor: "white",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 16,
+    backgroundColor: THEME.background,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    padding: 24,
     height: "70%",
+    shadowColor: COLORS.BLACK,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 20,
   },
   sheetHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
+    marginBottom: 10,
   },
-  sheetTitle: { fontSize: 18, fontWeight: "bold", color: "#333" },
-  sheetSub: { marginTop: 4, fontSize: 12, color: "#666" },
+  sheetTitle: { fontSize: 22, fontWeight: "bold", color: THEME.text },
+  sheetSub: { marginTop: 4, fontSize: 14, color: THEME.textLight },
 
   primaryBtn: {
-    paddingVertical: 12,
-    borderRadius: 10,
+    paddingVertical: 14,
+    borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#007AFF",
+    backgroundColor: THEME.primary,
+    shadowColor: COLORS.DUSK_BLUE,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 8,
   },
-  primaryBtnText: { color: "white", fontWeight: "bold", fontSize: 16 },
+  primaryBtnText: { color: COLORS.WHITE, fontWeight: "bold", fontSize: 16 },
 
   categoryRow: {
     paddingVertical: 10,
@@ -1052,15 +1095,15 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: "100%",
     height: "35%",
-    backgroundColor: "white",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    elevation: 10,
+    backgroundColor: THEME.surface,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    padding: 24,
+    shadowColor: COLORS.BLACK,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 20,
     zIndex: 2,
   },
   routeHeader: {
@@ -1083,24 +1126,25 @@ const styles = StyleSheet.create({
 
   fabContainer: {
     position: "absolute",
-    right: 16,
-    bottom: 24,
+    left: 20,
+    bottom: 50, // Moved down 30 pixels (80 -> 50)
     zIndex: 10,
   },
   fab: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#007AFF",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
+    backgroundColor: THEME.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 30,
+    shadowColor: COLORS.BLACK,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 8,
   },
   fabText: {
-    color: "white",
+    color: COLORS.WHITE,
     fontWeight: "bold",
     marginLeft: 8,
   },
