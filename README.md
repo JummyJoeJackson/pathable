@@ -15,7 +15,7 @@ A map for people with disabilities or injuries.
 ## Features
 
 - Optimized Routing for Accessibility Needs
-- Accessibility Information
+- Accessibility Information (w/ AI Summary)
 - Search Nearby Locations (w/ Accessibility Ratings)
 - Filter Locations by Accessibility
 
