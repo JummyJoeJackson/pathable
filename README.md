@@ -9,7 +9,7 @@ A map for people with disabilities or injuries.
 
 - [@JummyJoeJackson](https://www.github.com/JummyJoeJackson) (Front & Back-End)
 - [@vkreji](https://www.github.com/vkreji) (Graphic Design)
-- [@serene-x](https://github.com/serene-x) (Database)
+- [@serene-x](https://github.com/serene-x) (Front & Back-End)
 
 
 ## Features
