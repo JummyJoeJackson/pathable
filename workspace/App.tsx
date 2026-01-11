@@ -30,7 +30,7 @@ import {
 } from "firebase/firestore";
 
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000";
+const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://172.17.75.111:5001";
 
 interface Place {
   place_id: string;
@@ -345,9 +345,19 @@ export default function App() {
   // ---- Ramps: add ----
   const addRamp = async (lat: number, lng: number) => {
     try {
-      await addDoc(collection(db, "ramps"), {
+      const docRef = await addDoc(collection(db, "ramps"), {
         lat,
         lng,
+        created_at: serverTimestamp(),
+      });
+
+      // Auto-add a 5-star baseline review for every category
+      const fullRatings: Record<string, number> = {};
+      CATEGORIES.forEach((c) => (fullRatings[c] = 5));
+
+      await addDoc(collection(db, "reviews"), {
+        place_id: docRef.id,
+        ratings: fullRatings,
         created_at: serverTimestamp(),
       });
     } catch (e) {
@@ -555,6 +565,20 @@ export default function App() {
     });
   });
 
+  // Combine filtered places and all ramps into one stable list for the map
+  const displayMarkers = [
+    ...filteredPlaces.map((p) => ({ ...p, isRamp: false })),
+    ...ramps.map((r) => ({
+      place_id: r.id,
+      name: "Ramp",
+      address: "Crowd-sourced accessibility point",
+      lat: r.lat,
+      lng: r.lng,
+      isRamp: true,
+    })),
+  ];
+
+
   const showFab = !detailsOpen && !rateOpen && !isRouting;
 
 
@@ -595,49 +619,46 @@ export default function App() {
             );
           }}
         >
-          {/* Places */}
-          {filteredPlaces.map((place, idx) => (
-
+          {displayMarkers.map((m) => (
             <Marker
-              key={`${place.place_id}-${idx}`}
-              coordinate={{ latitude: place.lat, longitude: place.lng }}
-              title={place.name}
+              key={m.place_id}
+              coordinate={{ latitude: m.lat, longitude: m.lng }}
+              title={m.name}
+              pinColor={m.isRamp ? "#28a745" : undefined}
               onPress={() => {
-                setSelectedPlace(place);
-                subscribeToReviews(place.place_id);
+                const placeObj = m.isRamp
+                  ? {
+                    place_id: m.place_id,
+                    name: m.name,
+                    address: m.address,
+                    lat: m.lat,
+                    lng: m.lng,
+                  }
+                  : (m as any as Place);
+
+                setSelectedPlace(placeObj);
+                subscribeToReviews(m.place_id);
                 setDetailsOpen(true);
               }}
             >
-
               <Callout tooltip>
                 <View style={styles.calloutContainer}>
-                  <Text style={styles.calloutTitle}>{place.name}</Text>
-                  <Text style={styles.calloutAddress}>{place.address}</Text>
+                  <Text style={styles.calloutTitle}>{m.name}</Text>
+                  <Text style={styles.calloutAddress}>{m.address}</Text>
                   <View style={[styles.calloutButton, { marginTop: 10 }]}>
-                    <Text style={styles.calloutButtonText}>Tap marker for details</Text>
+                    <Text style={styles.calloutButtonText}>Tap for details & ratings</Text>
                   </View>
                 </View>
               </Callout>
             </Marker>
           ))}
 
-          {/* Ramps */}
-          {ramps.map((r) => (
-            <Marker
-              key={r.id}
-              coordinate={{ latitude: r.lat, longitude: r.lng }}
-              title="Ramp"
-              pinColor="#28a745"
-            />
-          ))}
 
-          { }
           {isRouting && route.length > 0 && (
             <Polyline coordinates={route} strokeColor="#007AFF" strokeWidth={5} />
           )}
         </MapView>
 
-        { }
         {showFab && (
           <View style={styles.fabContainer}>
             <TouchableOpacity
