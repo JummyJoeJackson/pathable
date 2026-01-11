@@ -28,6 +28,19 @@ To run this project, you will need to add the following environment variables in
 
 `GOOGLE_MAPS_API_KEY`: API key for google maps
 
+`EXPO_PUBLIC_FIREBASE_API_KEY`: API key for firebase
+
+`EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN`: Firebase authentication domain
+
+`EXPO_PUBLIC_FIREBASE_PROJECT_ID`: Firebase project id
+
+`EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET`: Firebase storage location
+
+`EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`: Firebase messaging id
+
+`EXPO_PUBLIC_FIREBASE_APP_ID`: Firebase app id
+
+`EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID`: Firebase measurement id
 
 ## Run Locally
 
