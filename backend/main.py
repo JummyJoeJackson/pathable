@@ -13,12 +13,10 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-# Ramps are currently hardcoded for demo purposes
-RAMP_DATABASE = [(43.6544, -79.3807), (43.6560, -79.3802),]
-
 API_KEY = os.getenv('GOOGLE_MAPS_API_KEY')
 if not API_KEY:
     raise ValueError("No GOOGLE_MAPS_API_KEY found in environment variables")
+
 gmaps = googlemaps.Client(key=API_KEY)
 
 
@@ -79,6 +77,7 @@ def get_places():
             })
             
         return jsonify(results)
+    
     except Exception as e:
         print(f"Error: {e}")
         return jsonify({'error': str(e)}), 500
@@ -89,12 +88,16 @@ def get_places():
 def get_directions():
     origin = request.args.get('origin')
     destination = request.args.get('destination')
+    waypoint = request.args.get('waypoint')
     
     if not origin or not destination:
         return jsonify({'error': 'Origin and Destination are required'}), 400
 
     try:
-        directions_result = gmaps.directions(origin, destination, mode='walking')
+        if waypoint:
+            directions_result = gmaps.directions(origin, destination, mode='walking', waypoints=[waypoint])
+        else:
+            directions_result = gmaps.directions(origin, destination, mode='walking')
         
         if not directions_result:
             return jsonify({'error': 'No route found'}), 404
@@ -117,17 +120,19 @@ def get_directions():
         
         path_points = [{'latitude': lat, 'longitude': lng} for lat, lng in decoded_points]
 
-        ramp_used = False
+        ramp_used = bool(waypoint)
         features_used = []
-        
-        for r_lat, r_lng in RAMP_DATABASE:
-            for point in  path_points[::10]:
-                if abs(point['latitude'] - r_lat) < 0.001 and abs(point['longitude'] - r_lng) < 0.001:
-                    ramp_used = True
-                    features_used.append("Manual Ramp Shortcut")
+        if waypoint:
+            features_used.append("Waypoint ramp used")
+        else:
+            for r_lat, r_lng in RAMP_DATABASE:
+                for point in  path_points[::10]:
+                    if abs(point['latitude'] - r_lat) < 0.001 and abs(point['longitude'] - r_lng) < 0.001:
+                        ramp_used = True
+                        features_used.append("Manual Ramp Shortcut")
+                        break
+                if ramp_used:
                     break
-            if ramp_used:
-                break
         
         return jsonify({
             'points': path_points,
