@@ -37,7 +37,7 @@ interface RouteStep {
   duration: string;
 }
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:5001";
+const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://172.18.77.79:5001";
 
 const COLORS = {
   DUSK_BLUE: "#195291",
@@ -153,6 +153,26 @@ const distMeters = (aLat: number, aLng: number, bLat: number, bLng: number) => {
 };
 
 export default function App() {
+  const [placeSummary, setPlaceSummary] = useState("");
+  const [keyboardH, setKeyboardH] = useState(0);
+  useEffect(() => {
+    const showEvt = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvt = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const subShow = Keyboard.addListener(showEvt, (e) => {
+      setKeyboardH(e.endCoordinates?.height ?? 0);
+    });
+
+    const subHide = Keyboard.addListener(hideEvt, () => {
+      setKeyboardH(0);
+    });
+
+    return () => {
+      subShow.remove();
+      subHide.remove();
+    };
+  }, []);
+  const [summaryLoading, setSummaryLoading] = useState(false);
   const [avgRatings, setAvgRatings] = useState<Record<string, number>>({});
   const [reviewCount, setReviewCount] = useState(0);
   const reviewsUnsubRef = useRef<null | (() => void)>(null);
@@ -170,6 +190,8 @@ export default function App() {
     seating: 0,
     parking: 0,
   });
+
+  const [myReviewText, setMyReviewText] = useState("");
 
   const [queryText, setQueryText] = useState("");
   const [places, setPlaces] = useState<Place[]>([]);
@@ -194,6 +216,7 @@ export default function App() {
 
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const mapRef = useRef<MapView>(null);
+  const rateScrollRef = useRef<ScrollView>(null);
 
   // Location permission
   useEffect(() => {
@@ -285,11 +308,12 @@ export default function App() {
     };
   }, []);
 
-  const addReview = async (place: Place, ratings: Record<string, number>) => {
+  const addReview = async (place: Place, ratings: Record<string, number>, text: string) => {
     try {
       await addDoc(collection(db, "reviews"), {
         place_id: place.place_id,
         ratings,
+        text: (text ?? "").trim(),
         created_at: serverTimestamp(),
       });
     } catch (e) {
@@ -360,6 +384,27 @@ export default function App() {
     } catch (e) {
       console.error(e);
       Alert.alert("Error", "Could not add ramp.");
+    }
+  };
+
+  const loadSummary = async (placeId: string) => {
+    try {
+      setSummaryLoading(true);
+      const resp = await fetch(
+        `${API_URL}/api/summary?place_id=${encodeURIComponent(placeId)}`
+      );
+      const data = await resp.json();
+      if (data?.error) {
+        console.warn("Summary error:", data.error);
+        setPlaceSummary("");
+        return;
+      }
+      setPlaceSummary(data?.summary ?? "");
+    } catch (e) {
+      console.error("Failed to load summary:", e);
+      setPlaceSummary("");
+    } finally {
+      setSummaryLoading(false);
     }
   };
 
@@ -599,6 +644,7 @@ export default function App() {
               onPress={() => {
                 setSelectedPlace(m);
                 subscribeToReviews(m.place_id);
+                loadSummary(m.place_id);
                 setDetailsOpen(true);
               }}
             >
@@ -700,7 +746,7 @@ export default function App() {
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Filter by Features</Text>
                 <TouchableOpacity onPress={() => setFilterVisible(false)}>
-                  <Ionicons name="close" size={24} color="#000" />
+                  <Ionicons name="close" size={24} color={THEME.text} />
                 </TouchableOpacity>
               </View>
 
@@ -743,7 +789,7 @@ export default function App() {
                   <Text style={styles.sheetSub}>{selectedPlace?.address ?? ""}</Text>
                 </View>
                 <TouchableOpacity onPress={() => setDetailsOpen(false)} activeOpacity={0.7}>
-                  <Ionicons name="close" size={26} color={THEME.textLight} />
+                  <Ionicons name="close" size={26} color="#666" />
                 </TouchableOpacity>
               </View>
 
@@ -763,6 +809,21 @@ export default function App() {
                 </Text>
               </View>
 
+              <View style={{ marginTop: 14 }}>
+                <Text style={{ fontWeight: "bold", marginBottom: 6 }}>Community summary</Text>
+
+                {summaryLoading ? (
+                  <Text style={{ color: "#666" }}>Loading summary…</Text>
+                ) : placeSummary ? (
+                  <Text style={{ color: "#333", lineHeight: 20 }}>{placeSummary}</Text>
+                ) : (
+                  <Text style={{ color: "#666" }}>
+                    No written reviews yet — add a description to generate a summary.
+                  </Text>
+                )}
+              </View>
+
+
               <View style={{ flexDirection: "row", marginTop: 14 }}>
                 <TouchableOpacity
                   style={[styles.primaryBtn, { flex: 1, marginRight: 8 }]}
@@ -779,7 +840,7 @@ export default function App() {
                 <TouchableOpacity
                   style={[
                     styles.primaryBtn,
-                    { flex: 1, backgroundColor: THEME.accent, marginLeft: 8 },
+                    { flex: 1, backgroundColor: "#28a745", marginLeft: 8 },
                   ]}
                   activeOpacity={0.85}
                   onPress={() => {
@@ -792,6 +853,7 @@ export default function App() {
                         seating: 0,
                         parking: 0,
                       });
+                      setMyReviewText("");
                       setRateOpen(true);
                     }, 200);
                   }}
@@ -809,7 +871,7 @@ export default function App() {
                   <View key={k} style={styles.categoryRow}>
                     <Text style={styles.categoryLabel}>{prettyCategory(k)}</Text>
                     {reviewCount === 0 ? (
-                      <Text style={{ color: "#666" }}>—</Text>
+                      <Text style={{ color: THEME.textLight }}>—</Text>
                     ) : (
                       <StarRow value={avgRatings[k] ?? 0} />
                     )}
@@ -840,7 +902,12 @@ export default function App() {
                 </TouchableOpacity>
               </View>
 
-              <ScrollView style={{ flex: 1, marginTop: 10 }}>
+              <ScrollView
+                ref={rateScrollRef}
+                style={{ flex: 1, marginTop: 10 }}
+                contentContainerStyle={{ paddingBottom: keyboardH + 30 }}
+                keyboardShouldPersistTaps="handled"
+              >
                 {CATEGORIES.map((k) => (
                   <View key={k} style={styles.rateRow}>
                     <Text style={styles.rateLabel}>{prettyCategory(k)}</Text>
@@ -850,7 +917,34 @@ export default function App() {
                     />
                   </View>
                 ))}
-                <View style={{ height: 110 }} />
+
+                {/* Description box */}
+                <View style={{ paddingVertical: 14 }}>
+                  <Text style={styles.rateLabel}>Description (optional)</Text>
+                  <TextInput
+                    value={myReviewText}
+                    onChangeText={setMyReviewText}
+                    placeholder="e.g., North entrance ramp is steep. Elevator near atrium often broken."
+                    multiline
+                    scrollEnabled
+                    maxLength={600}
+                    onFocus={() =>
+                      setTimeout(() => rateScrollRef.current?.scrollToEnd({ animated: true }), 80)
+                    }
+                    style={{
+                      borderWidth: 1,
+                      borderColor: THEME.border,
+                      borderRadius: 10,
+                      padding: 12,
+                      minHeight: 160,
+                      textAlignVertical: "top",
+                      backgroundColor: THEME.surface,
+                    }}
+                  />
+                  <Text style={{ color: THEME.textLight, fontSize: 12, marginTop: 6 }}>
+                    Keep it specific (ramps, elevators, doors, surfaces). Avoid personal info.
+                  </Text>
+                </View>
               </ScrollView>
 
               <TouchableOpacity
@@ -866,7 +960,11 @@ export default function App() {
                     }
                   }
 
-                  await addReview(selectedPlace, myRatings);
+                  await addReview(selectedPlace, myRatings, myReviewText);
+
+                  // Refresh the summary immediately after submitting
+                  await loadSummary(selectedPlace.place_id);
+
                   setRateOpen(false);
                   Alert.alert("Submitted!", "Thanks for the review.");
                 }}
@@ -877,53 +975,52 @@ export default function App() {
           </View>
         </Modal>
 
+
         {/* Route Panel */}
-        {
-          isRouting && routeStats && (
-            <View style={styles.routeContainer}>
-              <View style={styles.routeHeader}>
-                <View style={{ flex: 1, paddingRight: 10 }}>
-                  <Text style={styles.routeTitle}>To: {selectedPlace?.name}</Text>
-                  <Text style={styles.routeSubTitle}>
-                    {routeStats.duration} ({routeStats.distance})
+        {isRouting && routeStats && (
+          <View style={styles.routeContainer}>
+            <View style={styles.routeHeader}>
+              <View style={{ flex: 1, paddingRight: 10 }}>
+                <Text style={styles.routeTitle}>To: {selectedPlace?.name}</Text>
+                <Text style={styles.routeSubTitle}>
+                  {routeStats.duration} ({routeStats.distance})
+                </Text>
+
+                {routeStats.rampUsed && (
+                  <Text style={styles.rampAlert}>
+                    ✓ Using crowd-sourced ramp
+                    {routeStats.waypoint ? ` near ${routeStats.waypoint}` : ""}
                   </Text>
-
-                  {routeStats.rampUsed && (
-                    <Text style={styles.rampAlert}>
-                      ✓ Using crowd-sourced ramp
-                      {routeStats.waypoint ? ` near ${routeStats.waypoint}` : ""}
-                    </Text>
-                  )}
-                </View>
-
-                <TouchableOpacity
-                  onPress={() => setIsRouting(false)}
-                  style={styles.closeRouteButton}
-                >
-                  <Ionicons name="close-circle" size={30} color={THEME.textLight} />
-                </TouchableOpacity>
+                )}
               </View>
 
-              <ScrollView style={styles.stepsList}>
-                {routeSteps.map((step, i) => (
-                  <View key={i} style={styles.stepItem}>
-                    <Text style={styles.stepIndex}>{i + 1}.</Text>
-                    <Text style={styles.stepText}>{step.instruction}</Text>
-                  </View>
-                ))}
-              </ScrollView>
+              <TouchableOpacity
+                onPress={() => setIsRouting(false)}
+                style={styles.closeRouteButton}
+              >
+                <Ionicons name="close-circle" size={30} color={THEME.textLight} />
+              </TouchableOpacity>
             </View>
-          )
-        }
+
+            <ScrollView style={styles.stepsList}>
+              {routeSteps.map((step, i) => (
+                <View key={i} style={styles.stepItem}>
+                  <Text style={styles.stepIndex}>{i + 1}.</Text>
+                  <Text style={styles.stepText}>{step.instruction}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         <StatusBar style="auto" />
-      </View >
-    </SafeAreaProvider >
+      </View>
+    </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
+  container: { flex: 1, backgroundColor: THEME.background },
   map: { width: "100%", height: "100%" },
 
   safeArea: {
@@ -953,11 +1050,10 @@ const styles = StyleSheet.create({
   filterButton: { padding: 10 },
   button: {
     backgroundColor: THEME.primary,
-    paddingHorizontal: 30,
+    paddingHorizontal: 20,
     justifyContent: "center",
     alignItems: "center",
     height: 45,
-    marginRight: 0,
     borderRadius: 22,
   },
   buttonText: { color: "white", fontWeight: "bold", fontSize: 16 },
@@ -1115,19 +1211,19 @@ const styles = StyleSheet.create({
     borderBottomColor: "#eee",
     paddingBottom: 10,
   },
-  routeTitle: { fontSize: 18, fontWeight: "bold", color: "#333" },
-  routeSubTitle: { fontSize: 14, color: "#666", marginTop: 2 },
-  rampAlert: { color: "#28a745", fontWeight: "bold", marginTop: 6, fontSize: 13 },
+  routeTitle: { fontSize: 18, fontWeight: "bold", color: THEME.text },
+  routeSubTitle: { fontSize: 14, color: THEME.textLight, marginTop: 2 },
+  rampAlert: { color: THEME.accent, fontWeight: "bold", marginTop: 6, fontSize: 13 },
   closeRouteButton: { padding: 5 },
   stepsList: { flex: 1 },
   stepItem: { flexDirection: "row", marginBottom: 12, paddingRight: 10 },
-  stepIndex: { fontWeight: "bold", marginRight: 8, color: "#007AFF", minWidth: 20 },
-  stepText: { fontSize: 14, color: "#333", flex: 1, lineHeight: 20 },
+  stepIndex: { fontWeight: "bold", marginRight: 8, color: THEME.primary, minWidth: 20 },
+  stepText: { fontSize: 14, color: THEME.text, flex: 1, lineHeight: 20 },
 
   fabContainer: {
     position: "absolute",
-    left: 20,
-    bottom: 50, // Moved down 30 pixels (80 -> 50)
+    left: 16,
+    bottom: 50,
     zIndex: 10,
   },
   fab: {
@@ -1144,7 +1240,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   fabText: {
-    color: COLORS.WHITE,
+    color: "white",
     fontWeight: "bold",
     marginLeft: 8,
   },
